@@ -1,0 +1,44 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: mixed-line-ending
+
+  - repo: local
+    hooks:
+      - id: treefmt
+        name: treefmt
+        entry: nix fmt --
+        language: system
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run --new-from-rev=HEAD~1 --fix
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-test
+        name: go test
+        entry: go test -race -short -timeout=5m ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: vendorhash
+        name: vendorhash check
+        entry: go run ./cmd/vendorhash check
+        language: system
+        files: ^(go\.mod|go\.sum|flakehashes\.json)$
+        pass_filenames: false
+
+exclude: ^(gen/|testdata/|result/|\.direnv/)

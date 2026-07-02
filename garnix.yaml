@@ -1,0 +1,9 @@
+# The e2e NixOS VM test runs here too (garnix builders have KVM).
+#
+# govulncheck deliberately has no job: it fetches the live vulnerability
+# database, so it cannot be a pure derivation. Run it from the dev shell.
+builds:
+  include:
+    - "checks.x86_64-linux.*"
+    - "packages.x86_64-linux.*"
+    - "devShells.x86_64-linux.*"
