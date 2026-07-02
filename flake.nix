@@ -77,9 +77,11 @@
           golangci-lint = fc.goLint common;
           formatting = fc.goFormat common;
         }
-        # NixOS evaluation needs a Linux system.
+        # NixOS evaluation and the full-stack VM test need a Linux system (and,
+        # for the VM, KVM).
         // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           module-eval = import ./module-eval.nix { inherit pkgs self nixpkgs system; };
+          e2e = import ./e2e.nix { inherit pkgs self headscale system; };
         };
       }
     );
