@@ -6,11 +6,13 @@ require (
 	github.com/1password/onepassword-sdk-go v0.4.0
 	github.com/arl/statsviz v0.8.1
 	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/grafana/grafana-foundation-sdk/go v0.0.18
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mdlayher/sdnotify v1.0.0
 	github.com/peterbourgon/ff/v4 v4.0.0-beta.1
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tailscale/setec v0.0.0-20260415230416-802071d7d5bf
 	golang.org/x/sync v0.20.0
@@ -69,7 +71,6 @@ require (
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/safchain/ethtool v0.3.0 // indirect

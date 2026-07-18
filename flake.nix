@@ -49,11 +49,31 @@
           goPkg = pkgs.go_1_26;
           subPackages = [ "cmd/ts1p" ];
         };
+        # The dashboard generator is a separate binary (cmd/dashboard) so the
+        # Grafana Foundation SDK's dependencies stay out of the ts1p server build.
+        # It emits the ts1p Grafana dashboard as a bare JSON model on stdout.
+        dashboard = (fc.goBuild (common // {
+          pname = "ts1p-dashboard";
+          subPackages = [ "cmd/dashboard" ];
+        })).overrideAttrs (_: {
+          meta.mainProgram = "dashboard";
+        });
+
+        # Runs the generator and captures only the dashboard JSON, so a Nix
+        # consumer can provision it directly. Build() schema-validates, so a
+        # broken dashboard fails this build rather than shipping broken JSON.
+        grafanaDashboards = pkgs.runCommand "ts1p-grafana-dashboards" { } ''
+          mkdir -p $out
+          ${dashboard}/bin/dashboard > $out/ts1p.json
+        '';
       in
       {
-        packages.default = (fc.goBuild common).overrideAttrs (_: {
-          meta.mainProgram = "ts1p";
-        });
+        packages = {
+          default = (fc.goBuild common).overrideAttrs (_: {
+            meta.mainProgram = "ts1p";
+          });
+          inherit dashboard grafanaDashboards;
+        };
         formatter = fc.formatter common;
         devShells.default = pkgs.mkShell {
           packages = [
@@ -76,6 +96,9 @@
           gotest = fc.goTest (common // { goRace = true; });
           golangci-lint = fc.goLint common;
           formatting = fc.goFormat common;
+          # Generating the dashboard JSON is its own validation (Build() fails on
+          # a bad panel), so building it in CI keeps the artifact honest.
+          inherit grafanaDashboards;
         }
         # NixOS evaluation and the full-stack VM test need a Linux system (and,
         # for the VM, KVM).
