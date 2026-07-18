@@ -129,6 +129,11 @@ type Backend struct {
 // atomics via OOBCount/CtxCanceledCount and does not re-register (which would panic).
 var publishOnce sync.Once
 
+// lastFaultTS is the process-global gauge set by recordFault. It is registered
+// once by publishVars (under publishOnce, like the counters); recordFault reads
+// it, so a Backend created before publishVars ran sees nil and skips the set.
+var lastFaultTS *prometheus.GaugeVec
+
 // New connects to 1Password with the given service account token and returns a
 // Backend bound to the vault with the given title. maxAge, if > 0, recycles the
 // process (exits for a clean restart) once the WASM core has been alive that
@@ -171,9 +176,10 @@ func New(ctx context.Context, token, vaultName string, log *slog.Logger, maxAge 
 // internally (OOBCount, CtxCanceledCount) and by tests, so a CounterFunc reads
 // the atomic rather than replacing it.
 //
-// ts1p_op_last_fault stays an expvar, not a metric: it is a struct with a
-// high-cardinality WASM frame — a poor Prometheus series, and its numeric signal
-// is already the fault counters. ponytail: keep the rich diagnostic on /debug/vars.
+// The last fault's numeric signal is a Prometheus gauge
+// (ts1p_op_last_fault_timestamp_seconds, by bounded class/op labels). Only the
+// high-cardinality WASM frame stays off Prometheus — it is forensic text, not a
+// metric, and is served as the ts1p_op_last_fault expvar for on-demand inspection.
 func (b *Backend) publishVars() {
 	publishOnce.Do(func() {
 		counter := func(name, help string, read func() int64) {
@@ -186,6 +192,11 @@ func (b *Backend) publishVars() {
 		counter("ts1p_op_core_timeout_total", "SDK calls that blew the backend's own timeout.", b.coreTimeout.Load)
 		counter("ts1p_op_rate_limited_total", "Calls refused by 1Password's service-account quota.", b.rateLimited.Load)
 		counter("ts1p_op_auth_failed_total", "Calls that failed looking like a credential problem.", b.authFailed.Load)
+
+		lastFaultTS = promauto.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ts1p_op_last_fault_timestamp_seconds",
+			Help: "Unix time of the most recent 1Password WASM fault, by class and op.",
+		}, []string{"class", "op"})
 
 		expvar.Publish("ts1p_op_last_fault", expvar.Func(func() any {
 			if fi := b.lastFault.Load(); fi != nil {
@@ -581,6 +592,10 @@ func (b *Backend) recordFault(label string, err error, ctxCanceled bool, latency
 		Frame:         firstWasmFrame(err),
 	}
 	b.lastFault.Store(fi)
+
+	if lastFaultTS != nil {
+		lastFaultTS.WithLabelValues(fi.Class, fi.Op).Set(float64(fi.Time.Unix()))
+	}
 
 	if fi.Class == faultOOB {
 		b.oob.Add(1)
