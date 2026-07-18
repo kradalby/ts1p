@@ -11,6 +11,8 @@ import (
 
 	op "github.com/1password/onepassword-sdk-go"
 	"github.com/cenkalti/backoff/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"github.com/tailscale/setec/types/api"
 
@@ -254,6 +256,30 @@ func TestCtxCanceledCounted(t *testing.T) {
 
 	_, _ = b.List(ctx)
 	require.Equal(t, int64(1), b.CtxCanceledCount())
+}
+
+// TestRecordFaultSetsGauge confirms recordFault publishes the last fault's time
+// as ts1p_op_last_fault_timestamp_seconds, labelled by its bounded class and op —
+// the numeric signal that used to live only in the expvar struct.
+func TestRecordFaultSetsGauge(t *testing.T) {
+	prev := lastFaultTS
+
+	t.Cleanup(func() { lastFaultTS = prev })
+
+	lastFaultTS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "ts1p_op_last_fault_timestamp_seconds",
+		Help: "Unix time of the most recent 1Password WASM fault, by class and op.",
+	}, []string{"class", "op"})
+
+	faultTime := time.Unix(1_700_000_000, 0)
+	b := testBackend(newFakeItems())
+	b.now = func() time.Time { return faultTime }
+
+	b.recordFault("getting item", errors.New("out of bounds memory access"), false, 5*time.Millisecond)
+
+	var m dto.Metric
+	require.NoError(t, lastFaultTS.WithLabelValues(faultOOB, "getting item").Write(&m))
+	require.InDelta(t, float64(faultTime.Unix()), m.GetGauge().GetValue(), 0)
 }
 
 // TestStartRetriesTransientErrors: a transient failure at boot (DNS not ready,
