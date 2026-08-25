@@ -1,6 +1,6 @@
 module github.com/kradalby/ts1p
 
-go 1.26.4
+go 1.27.0
 
 require (
 	github.com/1password/onepassword-sdk-go v0.4.0
