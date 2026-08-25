@@ -51,10 +51,10 @@ func TestEndToEnd(t *testing.T) {
 		Mux:   mux,
 	})
 	require.NoError(t, err)
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
-	cli := setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	cli := setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 
 	const name = "ts1p-e2e-test"
 	_ = cli.Delete(ctx, name)

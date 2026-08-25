@@ -53,10 +53,10 @@ func serverWith(t *testing.T, st *store.Store, whois func(context.Context, strin
 	_, err := server.New(server.Config{Store: st, WhoIs: whois, Audit: audit.New(io.Discard), Mux: mux})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
-	return setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	return setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 }
 
 func TestAccessControl(t *testing.T) {

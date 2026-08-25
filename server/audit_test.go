@@ -67,10 +67,10 @@ func auditedServer(t *testing.T, buf *syncBuffer, rule *acl.Rule) setec.Client {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
-	return setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	return setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 }
 
 // TestAuditTrail pins the audit placement the README sells as a security
@@ -139,9 +139,9 @@ func TestAuditFailClosed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
-	cli := setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
+	cli := setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 
 	_, err = cli.Put(ctx, "k", []byte("v"))
 	require.Error(t, err, "an unaudited put must fail")
@@ -181,9 +181,9 @@ func TestTaggedNodeIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
-	cli := setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
+	cli := setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 
 	_, err = cli.Put(ctx, "k", []byte("v"))
 	require.NoError(t, err, "a tagged node's grant must authorize")
