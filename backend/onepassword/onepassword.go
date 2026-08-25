@@ -342,7 +342,7 @@ const faultRetries = 1
 //
 // TODO(kradalby): the fault detection, retry, and exit here exist only to work
 // around the SDK's WASM-core corruption; remove when kradalby/ts1p#2 is fixed.
-func call[T any](ctx context.Context, b *Backend, label string, retryable bool, fn func(context.Context, itemsAPI) (T, error)) (T, error) {
+func (b *Backend) call[T any](ctx context.Context, label string, retryable bool, fn func(context.Context, itemsAPI) (T, error)) (T, error) {
 	var zero T
 
 	start := b.now()
@@ -375,7 +375,7 @@ func call[T any](ctx context.Context, b *Backend, label string, retryable bool, 
 
 	var v T
 	for attempt := 0; ; attempt++ {
-		v, err = runOp(callCtx, b, retryable, fn)
+		v, err = b.runOp(callCtx, retryable, fn)
 		if err == nil || !isClientFault(err) {
 			break
 		}
@@ -467,7 +467,7 @@ func isAuthError(err error) bool {
 // timed-out goroutine is abandoned; it holds the SDK's global lock until the
 // process recycles, which is the documented failure mode. Retryable ops get
 // bounded transient-retry; non-retryable ops run exactly once.
-func runOp[T any](ctx context.Context, b *Backend, retryable bool, fn func(context.Context, itemsAPI) (T, error)) (T, error) {
+func (b *Backend) runOp[T any](ctx context.Context, retryable bool, fn func(context.Context, itemsAPI) (T, error)) (T, error) {
 	once := func() (T, error) { return raceCtx(ctx, func() (T, error) { return fn(ctx, b.conn.items) }) }
 	if !retryable {
 		return once()
@@ -673,7 +673,7 @@ func (b *Backend) findID(ctx context.Context, name string) (string, bool, error)
 // disagree about which — it returns an error naming the collision. This backend
 // assumes a single writer and a dedicated vault.
 func (b *Backend) resolveID(ctx context.Context, name string) (string, bool, error) {
-	overviews, err := call(ctx, b, "listing items", true, func(ctx context.Context, items itemsAPI) ([]op.ItemOverview, error) {
+	overviews, err := b.call(ctx, "listing items", true, func(ctx context.Context, items itemsAPI) ([]op.ItemOverview, error) {
 		return items.List(ctx, b.vaultID)
 	})
 	if err != nil {
@@ -745,7 +745,7 @@ func (b *Backend) rememberID(name, id string) {
 
 // getItem fetches one item by ID.
 func (b *Backend) getItem(ctx context.Context, id string) (op.Item, error) {
-	return call(ctx, b, "getting item", true, func(ctx context.Context, items itemsAPI) (op.Item, error) {
+	return b.call(ctx, "getting item", true, func(ctx context.Context, items itemsAPI) (op.Item, error) {
 		return items.Get(ctx, b.vaultID, id)
 	})
 }
@@ -834,7 +834,7 @@ func (b *Backend) Save(ctx context.Context, name string, r *backend.Record) erro
 
 	// Update in place, preserving the item's ID and version for the SDK's
 	// optimistic concurrency.
-	item, err := call(ctx, b, "getting item for update", true, func(ctx context.Context, items itemsAPI) (op.Item, error) {
+	item, err := b.call(ctx, "getting item for update", true, func(ctx context.Context, items itemsAPI) (op.Item, error) {
 		return items.Get(ctx, b.vaultID, id)
 	})
 	if err != nil {
@@ -864,7 +864,7 @@ func (b *Backend) Save(ctx context.Context, name string, r *backend.Record) erro
 	item.Fields = merged
 	// Put is not retryable: a re-run after a transient error that already applied
 	// would double-write.
-	_, err = call(ctx, b, "updating item", false, func(ctx context.Context, items itemsAPI) (op.Item, error) {
+	_, err = b.call(ctx, "updating item", false, func(ctx context.Context, items itemsAPI) (op.Item, error) {
 		return items.Put(ctx, item)
 	})
 
@@ -874,7 +874,7 @@ func (b *Backend) Save(ctx context.Context, name string, r *backend.Record) erro
 // create makes a new item for name. Create is not retryable: re-running one that
 // already took effect on the server would produce a duplicate item.
 func (b *Backend) create(ctx context.Context, name string, fields []op.ItemField) error {
-	item, err := call(ctx, b, "creating item", false, func(ctx context.Context, items itemsAPI) (op.Item, error) {
+	item, err := b.call(ctx, "creating item", false, func(ctx context.Context, items itemsAPI) (op.Item, error) {
 		return items.Create(ctx, op.ItemCreateParams{
 			Category: op.ItemCategoryPassword,
 			VaultID:  b.vaultID,
@@ -894,7 +894,7 @@ func (b *Backend) create(ctx context.Context, name string, fields []op.ItemField
 // List implements backend.Backend. Every listing also refreshes the title→ID
 // memo, so the warmer's periodic relist keeps single-secret ops one SDK call.
 func (b *Backend) List(ctx context.Context) ([]string, error) {
-	overviews, err := call(ctx, b, "listing items", true, func(ctx context.Context, items itemsAPI) ([]op.ItemOverview, error) {
+	overviews, err := b.call(ctx, "listing items", true, func(ctx context.Context, items itemsAPI) ([]op.ItemOverview, error) {
 		return items.List(ctx, b.vaultID)
 	})
 	if err != nil {
@@ -923,7 +923,7 @@ func (b *Backend) Delete(ctx context.Context, name string) error {
 		return nil // no-op, matching backend semantics
 	}
 
-	_, err = call(ctx, b, "deleting item", false, func(ctx context.Context, items itemsAPI) (struct{}, error) {
+	_, err = b.call(ctx, "deleting item", false, func(ctx context.Context, items itemsAPI) (struct{}, error) {
 		return struct{}{}, items.Delete(ctx, b.vaultID, id)
 	})
 	if err == nil {

@@ -310,7 +310,7 @@ func (s *Server) checkAndLog(c caller, action acl.Action, secret string, version
 }
 
 func (s *Server) list(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, _ api.ListRequest, c caller) ([]*api.SecretInfo, error) {
+	s.serveJSON(w, r, func(ctx context.Context, _ api.ListRequest, c caller) ([]*api.SecretInfo, error) {
 		// Mirror setec: one audit entry for the List call, then per-secret
 		// permission filtering with no further audit entries.
 		err := s.logAccess(c, acl.ActionInfo, "", 0, true)
@@ -328,7 +328,7 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) get(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.GetRequest, c caller) (*api.SecretValue, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.GetRequest, c caller) (*api.SecretValue, error) {
 		if req.Version != 0 {
 			if req.UpdateIfChanged {
 				// Conditional fetch: evaluate permission once, and audit only on a
@@ -374,7 +374,7 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.InfoRequest, c caller) (*api.SecretInfo, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.InfoRequest, c caller) (*api.SecretInfo, error) {
 		err := s.checkAndLog(c, acl.ActionInfo, req.Name, 0)
 		if err != nil {
 			return nil, err
@@ -390,7 +390,7 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 var errEmptyName = errors.New("empty secret name")
 
 func (s *Server) put(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.PutRequest, c caller) (api.SecretVersion, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.PutRequest, c caller) (api.SecretVersion, error) {
 		if req.Name == "" {
 			return 0, errEmptyName
 		}
@@ -405,7 +405,7 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createVersion(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.CreateVersionRequest, c caller) (struct{}, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.CreateVersionRequest, c caller) (struct{}, error) {
 		// setec validates the name, then the version, before authorizing — so
 		// an invalid request reports 500/400 regardless of permissions.
 		if req.Name == "" {
@@ -426,7 +426,7 @@ func (s *Server) createVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) activate(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.ActivateRequest, c caller) (struct{}, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.ActivateRequest, c caller) (struct{}, error) {
 		if req.Name == "" {
 			return struct{}{}, errEmptyName
 		}
@@ -441,7 +441,7 @@ func (s *Server) activate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteSecret(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.DeleteRequest, c caller) (struct{}, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.DeleteRequest, c caller) (struct{}, error) {
 		err := s.checkAndLog(c, acl.ActionDelete, req.Name, 0)
 		if err != nil {
 			return struct{}{}, err
@@ -452,7 +452,7 @@ func (s *Server) deleteSecret(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteVersion(w http.ResponseWriter, r *http.Request) {
-	serveJSON(s, w, r, func(ctx context.Context, req api.DeleteVersionRequest, c caller) (struct{}, error) {
+	s.serveJSON(w, r, func(ctx context.Context, req api.DeleteVersionRequest, c caller) (struct{}, error) {
 		err := s.checkAndLog(c, acl.ActionDelete, req.Name, req.Version)
 		if err != nil {
 			return struct{}{}, err
@@ -464,7 +464,7 @@ func (s *Server) deleteVersion(w http.ResponseWriter, r *http.Request) {
 
 // serveJSON decodes a JSON request, enforces setec's transport requirements,
 // runs fn, and maps its error to the same HTTP status codes setec uses.
-func serveJSON[REQ any, RESP any](s *Server, w http.ResponseWriter, r *http.Request, fn func(context.Context, REQ, caller) (RESP, error)) {
+func (s *Server) serveJSON[REQ any, RESP any](w http.ResponseWriter, r *http.Request, fn func(context.Context, REQ, caller) (RESP, error)) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "only POST requests allowed", http.StatusBadRequest)
 		return
