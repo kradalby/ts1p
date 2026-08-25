@@ -109,7 +109,7 @@
             pkgs.golangci-lint
             pkgs.gofumpt
             # The treefmt wrapper, configured identically to the formatting check
-            # (gofumpt + goimports -local + nixpkgs-fmt). Run `treefmt` or `nix fmt`.
+            # (gofumpt + goimports -local + nixfmt). Run `treefmt` or `nix fmt`.
             (fc.formatter common)
             pkgs.prek
             # Not a flake check: it fetches the live vulnerability database.

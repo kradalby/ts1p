@@ -179,7 +179,7 @@ and new in this release, not yet covered by the VM e2e test.
 
 ```sh
 nix develop          # go, gopls, golangci-lint, gofumpt, treefmt, prek, op
-nix fmt              # format Go + Nix (gofumpt + goimports + nixpkgs-fmt) via treefmt
+nix fmt              # format Go + Nix (gofumpt + goimports + nixfmt) via treefmt
 nix flake check      # build + race tests + lint + formatting
 go test -race ./...  # unit, conformance (vs setec client), differential, property, fuzz
 ```
