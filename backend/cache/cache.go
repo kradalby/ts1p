@@ -109,9 +109,9 @@ func (c *Cache) randomLifetime() time.Duration {
 		return 0
 	}
 
-	delta := int64(c.ttl) / jitterFrac
+	delta := c.ttl / jitterFrac
 	//nolint:gosec // cache-spread jitter, not security-sensitive
-	return c.ttl + time.Duration(rand.Int64N(2*delta+1)-delta)
+	return c.ttl + rand.N(2*delta+1) - delta
 }
 
 // expiresAt returns the (jittered) expiry for a freshly cached entry, or the
