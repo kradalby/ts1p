@@ -4,11 +4,18 @@ version: "2"
 
 linters:
   default: all
+  # golangci-lint v2.13 deprecated exhaustruct, gomodguard and wsl in favour of
+  # separately-registered successors (exhaustruct_v5, gomodguard_v2, wsl_v5).
+  # Under `default: all` the successor is a distinct linter that the legacy name
+  # no longer disables, so it switches itself on — exhaustruct_v5 alone surfaced
+  # 25 findings on pre-existing code. Both names are listed until upstream drops
+  # the deprecated ones.
   disable:
     - cyclop
     - depguard
     - dupl
     - exhaustruct
+    - exhaustruct_v5
     - funcorder
     - funlen
     - gochecknoglobals
@@ -16,6 +23,7 @@ linters:
     - gocognit
     - godox
     - gomodguard
+    - gomodguard_v2
     - interfacebloat
     - ireturn
     - lll
@@ -32,6 +40,7 @@ linters:
     - varnamelen
     - wrapcheck
     - wsl
+    - wsl_v5
   settings:
     goconst:
       # Test fixtures repeat strings by their nature; extracting them obscures
