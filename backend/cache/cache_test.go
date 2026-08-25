@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tailscale/setec/types/api"
 
@@ -164,24 +164,29 @@ func TestPurgeClearsEverything(t *testing.T) {
 }
 
 func TestCacheExpiry(t *testing.T) {
-	ctx := context.Background()
-	cnt := &counting{inner: mem.New()}
-	c := cache.New(cnt, 0, 30*time.Millisecond)
+	// A synctest bubble makes expiry exact instead of polled: the bubble's fake
+	// clock jumps straight past the TTL, and synctest.Sleep also waits for the
+	// bubble's goroutines to settle, so one assertion replaces a 2s poll loop.
+	// Lifetime is the TTL jittered by +/-20%, so the longest possible life is
+	// 36ms and 40ms clears it.
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		cnt := &counting{inner: mem.New()}
+		c := cache.New(cnt, 0, 30*time.Millisecond)
 
-	require.NoError(t, c.Save(ctx, "a", rec("a", "1")))
-	_, err := c.Load(ctx, "a") // populate cache
-	require.NoError(t, err)
+		require.NoError(t, c.Save(ctx, "a", rec("a", "1")))
+		_, err := c.Load(ctx, "a") // populate cache
+		require.NoError(t, err)
 
-	first := cnt.loads.Load()
+		first := cnt.loads.Load()
 
-	// After the TTL elapses, a load must consult the inner backend again.
-	// EventuallyWithT runs the condition body safely (assert, not require, so a
-	// failed poll retries instead of crashing the poller goroutine).
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err := c.Load(ctx, "a")
-		assert.NoError(ct, err)
-		assert.Greater(ct, cnt.loads.Load(), first)
-	}, 2*time.Second, 5*time.Millisecond, "cache entry should expire and refetch")
+		synctest.Sleep(40 * time.Millisecond)
+
+		// After the TTL elapses, a load must consult the inner backend again.
+		_, err = c.Load(ctx, "a")
+		require.NoError(t, err)
+		require.Greater(t, cnt.loads.Load(), first, "cache entry should expire and refetch")
+	})
 }
 
 // TestEvictionRefetches: an entry pushed out by the maxEntries bound is gone, so
