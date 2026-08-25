@@ -50,15 +50,15 @@ func TestUnavailableBackendReturns503(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
 	req, err := http.NewRequest(http.MethodPost, hs.URL+"/api/get", bytes.NewReader([]byte(`{"Name":"s"}`)))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Sec-X-Tailscale-No-Browsers", "setec")
 
-	resp, err := hs.Client().Do(req)
+	resp, err := hc.Do(req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -144,8 +144,8 @@ func TestStorageUnavailableLogsAreRateLimited(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
 	const n = 10
 	for range n {
@@ -153,7 +153,7 @@ func TestStorageUnavailableLogsAreRateLimited(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Sec-X-Tailscale-No-Browsers", "setec")
-		resp, err := hs.Client().Do(req)
+		resp, err := hc.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 		resp.Body.Close()
@@ -178,15 +178,15 @@ func TestForeignCancellationIs503(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
 	req, err := http.NewRequest(http.MethodPost, hs.URL+"/api/get", bytes.NewReader([]byte(`{"Name":"s"}`)))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Sec-X-Tailscale-No-Browsers", "setec")
 
-	resp, err := hs.Client().Do(req)
+	resp, err := hc.Do(req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -237,8 +237,8 @@ func TestDisconnectedClientStaysSilent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, hs.URL+"/api/get", bytes.NewReader([]byte(`{"Name":"s"}`)))
@@ -249,7 +249,7 @@ func TestDisconnectedClientStaysSilent(t *testing.T) {
 	errc := make(chan error, 1)
 
 	go func() {
-		resp, err := hs.Client().Do(req)
+		resp, err := hc.Do(req)
 		if err == nil {
 			resp.Body.Close()
 		}
@@ -261,7 +261,7 @@ func TestDisconnectedClientStaysSilent(t *testing.T) {
 	cancel()     // ...and now the client disconnects while it is still working
 	require.Error(t, <-errc, "the cancelled request must fail on the client side")
 	<-be.done  // the handler's store call has returned
-	hs.Close() // waits for in-flight handlers, so all logging has happened
+	hs.Close() // waits for in-flight handlers, so all logging has happened (Close is idempotent, so t.Cleanup's is harmless)
 
 	require.Less(t, logs.maxLevel(), slog.LevelError, "a disconnected client must not log at ERROR")
 }

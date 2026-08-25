@@ -23,6 +23,11 @@ import (
 
 // newTS1P starts a ts1p server with an in-memory backend and all-access
 // identity, returning its httptest server.
+//
+// Callers must take hs.Client() into its own statement before reading
+// hs.URL: NewTestServer's URL is only populated by the first Client call,
+// and the spec leaves operand-vs-call evaluation order inside a composite
+// literal unspecified, so reading both in one literal is not guaranteed.
 func newTS1P(t *testing.T) *httptest.Server {
 	t.Helper()
 
@@ -35,10 +40,7 @@ func newTS1P(t *testing.T) *httptest.Server {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
-
-	return hs
+	return httptest.NewTestServer(t, mux)
 }
 
 // newSetec starts setec's own reference server, the differential gold standard.
@@ -46,10 +48,8 @@ func newSetec(t *testing.T) *httptest.Server {
 	t.Helper()
 	db := setectest.NewDB(t, nil)
 	ss := setectest.NewServer(t, db, nil)
-	hs := httptest.NewServer(ss.Mux)
-	t.Cleanup(hs.Close)
 
-	return hs
+	return httptest.NewTestServer(t, ss.Mux)
 }
 
 // post issues a setec API call with the required headers and returns the raw
@@ -59,11 +59,13 @@ func post(t *testing.T, hs *httptest.Server, path string, body any) (int, string
 
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
+
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 	req, err := http.NewRequest(http.MethodPost, hs.URL+path, bytes.NewReader(b))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Sec-X-Tailscale-No-Browsers", "setec")
-	resp, err := hs.Client().Do(req)
+	resp, err := hc.Do(req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -182,8 +184,7 @@ func TestDifferentialAccessDenied(t *testing.T) {
 
 	db := setectest.NewDB(t, nil)
 	ss := setectest.NewServer(t, db, &setectest.ServerOptions{WhoIs: whois})
-	ref := httptest.NewServer(ss.Mux)
-	t.Cleanup(ref.Close)
+	ref := httptest.NewTestServer(t, ss.Mux)
 
 	mux := http.NewServeMux()
 	_, err := server.New(server.Config{
@@ -194,8 +195,7 @@ func TestDifferentialAccessDenied(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ts1p := httptest.NewServer(mux)
-	t.Cleanup(ts1p.Close)
+	ts1p := httptest.NewTestServer(t, mux)
 
 	b := func(s string) []byte { return []byte(s) }
 
@@ -223,7 +223,8 @@ func TestDifferentialAccessDenied(t *testing.T) {
 func TestClientLifecycle(t *testing.T) {
 	ctx := context.Background()
 	hs := newTS1P(t)
-	cli := setec.Client{Server: hs.URL, DoHTTP: hs.Client().Do}
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
+	cli := setec.Client{Server: hs.URL, DoHTTP: hc.Do}
 
 	// Missing secret.
 	_, err := cli.Get(ctx, "k")

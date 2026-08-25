@@ -51,8 +51,8 @@ func TestNoCacheHeaderForcesRefresh(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hs := httptest.NewServer(mux)
-	t.Cleanup(hs.Close)
+	hs := httptest.NewTestServer(t, mux)
+	hc := hs.Client() // starts the in-memory network and populates hs.URL
 
 	get := func(noCache bool) bool {
 		req, err := http.NewRequest(http.MethodPost, hs.URL+"/api/get", bytes.NewReader([]byte(`{"Name":"s"}`)))
@@ -64,7 +64,7 @@ func TestNoCacheHeaderForcesRefresh(t *testing.T) {
 			req.Header.Set("Cache-Control", "no-cache")
 		}
 
-		resp, err := hs.Client().Do(req)
+		resp, err := hc.Do(req)
 		require.NoError(t, err)
 
 		defer resp.Body.Close()
