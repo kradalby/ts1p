@@ -135,17 +135,14 @@ func TestSingleflightCoalesces(t *testing.T) {
 
 	got := make([]*backend.Record, n)
 	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			arrived.Add(1)
 
 			r, err := c.Load(ctx, "a")
 			assert.NoError(t, err)
 
 			got[i] = r
-		}()
+		})
 	}
 
 	require.Eventually(t, func() bool { return arrived.Load() == n }, time.Second, time.Millisecond)
