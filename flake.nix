@@ -13,11 +13,12 @@
   };
 
   outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , flake-checks
-    , headscale
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      flake-checks,
+      headscale,
     }:
     let
       hashes = builtins.fromJSON (builtins.readFile ./flakehashes.json);
@@ -73,12 +74,17 @@
         # The dashboard generator is a separate binary (cmd/dashboard) so the
         # Grafana Foundation SDK's dependencies stay out of the ts1p server build.
         # It emits the ts1p Grafana dashboard as a bare JSON model on stdout.
-        dashboard = (fc.goBuild (common // {
-          pname = "ts1p-dashboard";
-          subPackages = [ "cmd/dashboard" ];
-        })).overrideAttrs (_: {
-          meta.mainProgram = "dashboard";
-        });
+        dashboard =
+          (fc.goBuild (
+            common
+            // {
+              pname = "ts1p-dashboard";
+              subPackages = [ "cmd/dashboard" ];
+            }
+          )).overrideAttrs
+            (_: {
+              meta.mainProgram = "dashboard";
+            });
 
         # Runs the generator and captures only the dashboard JSON, so a Nix
         # consumer can provision it directly. Build() schema-validates, so a
@@ -124,8 +130,22 @@
         # NixOS evaluation and the full-stack VM test need a Linux system (and,
         # for the VM, KVM).
         // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-          module-eval = import ./module-eval.nix { inherit pkgs self nixpkgs system; };
-          e2e = import ./e2e.nix { inherit pkgs self headscale system; };
+          module-eval = import ./module-eval.nix {
+            inherit
+              pkgs
+              self
+              nixpkgs
+              system
+              ;
+          };
+          e2e = import ./e2e.nix {
+            inherit
+              pkgs
+              self
+              headscale
+              system
+              ;
+          };
         };
       }
     );

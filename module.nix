@@ -6,7 +6,12 @@
 #     environmentFile = config.age.secrets.ts1p-op-token.path; # OP_SERVICE_ACCOUNT_TOKEN=...
 #   };
 self:
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.ts1p;
   # A Go time.Duration string (e.g. "1h", "30m", "1h30m", "500ms", "0"), validated
@@ -15,7 +20,10 @@ let
 in
 {
   imports = [
-    (lib.mkRenamedOptionModule [ "services" "ts1p" "tokenFile" ] [ "services" "ts1p" "environmentFile" ])
+    (lib.mkRenamedOptionModule
+      [ "services" "ts1p" "tokenFile" ]
+      [ "services" "ts1p" "environmentFile" ]
+    )
   ];
 
   options.services.ts1p = {
@@ -142,8 +150,14 @@ in
       wantedBy = [ "multi-user.target" ];
       # nss-lookup.target orders ts1p after DNS is resolvable; ts1p also retries
       # its 1Password connect in-process, so a slow resolver no longer crash-loops.
-      after = [ "network-online.target" "nss-lookup.target" ];
-      wants = [ "network-online.target" "nss-lookup.target" ];
+      after = [
+        "network-online.target"
+        "nss-lookup.target"
+      ];
+      wants = [
+        "network-online.target"
+        "nss-lookup.target"
+      ];
 
       # TODO(kradalby): the start-limit backstop and Restart=always exist for the
       # 1Password WASM-core recycle/exit workaround; revisit when kradalby/ts1p#2
@@ -156,20 +170,22 @@ in
       startLimitBurst = 5;
 
       serviceConfig = {
-        ExecStart = lib.escapeShellArgs ([
-          (lib.getExe cfg.package)
-          "--hostname=${cfg.hostname}"
-          "--state-dir=/var/lib/ts1p"
-          "--cache-expiry=${cfg.cacheExpiry}"
-          "--cache-max-entries=${toString cfg.cacheMaxEntries}"
-          "--cache-warm=${lib.boolToString cfg.cacheWarm}"
-          "--op-max-age=${cfg.opMaxAge}"
-          "--debug-addr=${cfg.debugAddr}"
-        ]
-        ++ lib.optional cfg.dev "--dev"
-        ++ lib.optional (cfg.vault != "") "--vault=${cfg.vault}"
-        ++ lib.optional (cfg.service != "") "--service=${cfg.service}"
-        ++ lib.optional (cfg.loginServer != "") "--login-server=${cfg.loginServer}");
+        ExecStart = lib.escapeShellArgs (
+          [
+            (lib.getExe cfg.package)
+            "--hostname=${cfg.hostname}"
+            "--state-dir=/var/lib/ts1p"
+            "--cache-expiry=${cfg.cacheExpiry}"
+            "--cache-max-entries=${toString cfg.cacheMaxEntries}"
+            "--cache-warm=${lib.boolToString cfg.cacheWarm}"
+            "--op-max-age=${cfg.opMaxAge}"
+            "--debug-addr=${cfg.debugAddr}"
+          ]
+          ++ lib.optional cfg.dev "--dev"
+          ++ lib.optional (cfg.vault != "") "--vault=${cfg.vault}"
+          ++ lib.optional (cfg.service != "") "--service=${cfg.service}"
+          ++ lib.optional (cfg.loginServer != "") "--login-server=${cfg.loginServer}"
+        );
 
         StateDirectory = "ts1p";
         StateDirectoryMode = "0700";
@@ -215,7 +231,12 @@ in
         ProtectControlGroups = true;
         # AF_UNIX is required for tsnet's local API socket (and the server's
         # WhoIs calls over it).
-        RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+          "AF_NETLINK"
+        ];
         RestrictNamespaces = true;
         LockPersonality = true;
         MemoryDenyWriteExecute = false; # 1Password SDK runs a wasm core
