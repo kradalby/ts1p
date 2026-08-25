@@ -513,6 +513,15 @@ func serveService(ctx context.Context, log *slog.Logger, ts *tsnet.Server, mux *
 	pln := &proxyproto.Listener{
 		Listener:          ln,
 		ReadHeaderTimeout: readHeaderTimeout,
+		// The PROXY header is the whole identity model here, so require it
+		// explicitly instead of inheriting the library default. go-proxyproto's
+		// zero-value policy was USE until v0.15.0 made REQUIRE the default; under
+		// USE, a header-less connection would have been served with the raw
+		// tsnet-internal RemoteAddr, which is exactly the ACL bypass described
+		// above. Pinning it keeps a future default flip from moving it back.
+		ConnPolicy: func(proxyproto.ConnPolicyOptions) (proxyproto.Policy, error) {
+			return proxyproto.REQUIRE, nil
+		},
 	}
 	hs := httpServer(tsweb.BrowserHeaderHandler(mux))
 	done := shutdownOnDone(ctx, log, hs) // Shutdown closes ln, which de-advertises the service
