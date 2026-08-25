@@ -31,7 +31,28 @@
     // flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        # Bare `pkgs.go` and `pkgs.buildGoModule` still track the previous Go
+        # release in nixpkgs-unstable, so the latest attributes are named
+        # explicitly: ts1p follows the newest Go, not whatever nixpkgs
+        # defaults to. The Go dev tools are rebuilt against it as well —
+        # goimports ships wrapped with a `go` on PATH, and if that `go` is
+        # older than the go.mod directive, GOTOOLCHAIN=auto tries to fetch a
+        # toolchain from inside the network-less treefmt sandbox. golangci-lint
+        # and gopls already track the latest Go upstream, so they need no
+        # override.
+        goLatestOverlay = _final: prev: {
+          gotools = prev.gotools.override {
+            buildGoModule = prev.buildGoLatestModule;
+            go = prev.go_latest;
+          };
+          gofumpt = prev.gofumpt.override {
+            buildGoModule = prev.buildGoLatestModule;
+          };
+        };
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ goLatestOverlay ];
+        };
         # Scoped unfree import for the one unfree tool in the dev shell (op),
         # so the shell evaluates purely — locally and on garnix — without a
         # blanket NIXPKGS_ALLOW_UNFREE.
@@ -46,7 +67,7 @@
           pname = "ts1p";
           version = "0.1.0";
           vendorHash = hashes.vendorHash;
-          goPkg = pkgs.go_1_26;
+          goPkg = pkgs.go_latest;
           subPackages = [ "cmd/ts1p" ];
         };
         # The dashboard generator is a separate binary (cmd/dashboard) so the
@@ -77,7 +98,7 @@
         formatter = fc.formatter common;
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.go_1_26
+            pkgs.go_latest
             pkgs.gopls
             pkgs.golangci-lint
             pkgs.gofumpt
