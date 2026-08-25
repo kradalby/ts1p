@@ -129,7 +129,7 @@
         }
         # NixOS evaluation and the full-stack VM test need a Linux system (and,
         # for the VM, KVM).
-        // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           module-eval = import ./module-eval.nix {
             inherit
               pkgs
