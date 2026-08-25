@@ -273,7 +273,7 @@ func (b *Backend) start(ctx context.Context) error {
 	if b.maxAge > 0 {
 		// Jitter down by up to 10% so a fleet does not recycle in lockstep.
 		//nolint:gosec // scheduling jitter, not security-sensitive
-		jitter := time.Duration(rand.Int64N(int64(b.maxAge)/10 + 1))
+		jitter := rand.N(b.maxAge/10 + 1)
 		b.recycleAt = b.now().Add(b.maxAge - jitter)
 	}
 

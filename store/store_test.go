@@ -34,11 +34,11 @@ func TestInvariants(t *testing.T) {
 		case 0:
 			_, _ = s.Put(ctx, n, []byte(fmt.Sprintf("v%d", i)))
 		case 1:
-			_ = s.CreateVersion(ctx, n, api.SecretVersion(rng.IntN(8)), []byte(fmt.Sprintf("c%d", i)))
+			_ = s.CreateVersion(ctx, n, rng.N(api.SecretVersion(8)), []byte(fmt.Sprintf("c%d", i)))
 		case 2:
-			_ = s.Activate(ctx, n, api.SecretVersion(rng.IntN(8)))
+			_ = s.Activate(ctx, n, rng.N(api.SecretVersion(8)))
 		case 3:
-			_ = s.DeleteVersion(ctx, n, api.SecretVersion(rng.IntN(8)))
+			_ = s.DeleteVersion(ctx, n, rng.N(api.SecretVersion(8)))
 		case 4:
 			_ = s.Delete(ctx, n)
 		case 5:
