@@ -954,8 +954,10 @@ func encodeMeta(r *backend.Record) (string, error) {
 		return "", err
 	}
 
-	m := meta{Active: r.Active, Latest: r.Latest, Versions: r.Versions}
-	m.Deleted = slices.Sorted(maps.Keys(r.Deleted))
+	m := meta{
+		Active: r.Active, Latest: r.Latest, Versions: r.Versions,
+		Deleted: slices.Sorted(maps.Keys(r.Deleted)),
+	}
 
 	b, err := json.Marshal(m)
 	if err != nil {

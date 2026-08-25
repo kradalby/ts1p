@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
@@ -25,13 +26,10 @@ func TestConcurrentPutsNoLostUpdate(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			_, err := s.Put(ctx, "k", []byte(fmt.Sprintf("v%d", i)))
 			assert.NoError(t, err)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -59,13 +57,7 @@ func TestPutDedupWithDeletedLatest(t *testing.T) {
 		info, err := s.Info(ctx, "k")
 		require.NoError(t, err)
 
-		for _, x := range info.Versions {
-			if x == v {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(info.Versions, v)
 	}
 
 	v, err := s.Put(ctx, "k", []byte("c"))
