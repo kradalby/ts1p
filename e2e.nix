@@ -10,7 +10,12 @@
 # This proves the real path end to end — tailnet enrolment, WhoIs identity, the
 # capability grants, and the version lifecycle — against a genuine control plane,
 # exercising accepted, read-only, and access-denied outcomes across clients.
-{ pkgs, self, headscale, system }:
+{
+  pkgs,
+  self,
+  headscale,
+  system,
+}:
 let
   # Latest stable headscale, plus the (already-merged) upstream commit that
   # allowlists tailscale.com/cap/secrets in grants — policy set rejects the
@@ -29,39 +34,57 @@ let
     cp key.pem cert.pem $out
   '';
 
-  fullActions = [ "get" "info" "put" "create-version" "activate" "delete" ];
+  fullActions = [
+    "get"
+    "info"
+    "put"
+    "create-version"
+    "activate"
+    "delete"
+  ];
 
   # Loaded via `headscale policy set` once the users exist (database mode), so
   # user references resolve. acls open the network; grants attach capabilities.
-  policy = pkgs.writeText "policy.hujson" (builtins.toJSON {
-    groups = {
-      "group:writers" = [ "writer@example.com" ];
-      "group:readers" = [ "reader@example.com" ];
-    };
-    acls = [
-      {
-        action = "accept";
-        src = [ "*" ];
-        dst = [ "*:*" ];
-      }
-    ];
-    grants = [
-      {
-        src = [ "group:writers" ];
-        dst = [ "*" ];
-        app."tailscale.com/cap/secrets" = [
-          { action = fullActions; secret = [ "*" ]; }
-        ];
-      }
-      {
-        src = [ "group:readers" ];
-        dst = [ "*" ];
-        app."tailscale.com/cap/secrets" = [
-          { action = [ "get" "info" ]; secret = [ "*" ]; }
-        ];
-      }
-    ];
-  });
+  policy = pkgs.writeText "policy.hujson" (
+    builtins.toJSON {
+      groups = {
+        "group:writers" = [ "writer@example.com" ];
+        "group:readers" = [ "reader@example.com" ];
+      };
+      acls = [
+        {
+          action = "accept";
+          src = [ "*" ];
+          dst = [ "*:*" ];
+        }
+      ];
+      grants = [
+        {
+          src = [ "group:writers" ];
+          dst = [ "*" ];
+          app."tailscale.com/cap/secrets" = [
+            {
+              action = fullActions;
+              secret = [ "*" ];
+            }
+          ];
+        }
+        {
+          src = [ "group:readers" ];
+          dst = [ "*" ];
+          app."tailscale.com/cap/secrets" = [
+            {
+              action = [
+                "get"
+                "info"
+              ];
+              secret = [ "*" ];
+            }
+          ];
+        }
+      ];
+    }
+  );
 
   trustCert.security.pki.certificateFiles = [ "${tls-cert}/cert.pem" ];
 
@@ -112,10 +135,16 @@ pkgs.testers.runNixOSTest {
           };
         };
         networking.firewall = {
-          allowedTCPPorts = [ 80 443 ];
+          allowedTCPPorts = [
+            80
+            443
+          ];
           allowedUDPPorts = [ 3478 ];
         };
-        environment.systemPackages = [ headscalePkg pkgs.jq ];
+        environment.systemPackages = [
+          headscalePkg
+          pkgs.jq
+        ];
       };
 
     ts1p =

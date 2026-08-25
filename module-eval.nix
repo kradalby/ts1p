@@ -1,28 +1,32 @@
 # Eval-time smoke test for the NixOS module: assemble a minimal system in prod
 # and dev shape and assert the rendered ExecStart, so a broken option or service
 # definition fails `nix flake check` without spinning up a VM.
-{ pkgs, self, nixpkgs, system }:
+{
+  pkgs,
+  self,
+  nixpkgs,
+  system,
+}:
 let
   inherit (pkgs) lib;
 
   execStartFor =
     cfg:
-    (
-      (import (nixpkgs + "/nixos/lib/eval-config.nix") {
-        inherit system;
-        modules = [
-          self.nixosModules.default
-          {
-            boot.loader.grub.enable = false;
-            fileSystems."/" = {
-              device = "/dev/sda1";
-              fsType = "ext4";
-            };
-            system.stateVersion = "24.11";
-            services.ts1p = cfg;
-          }
-        ];
-      }).config.systemd.services.ts1p.serviceConfig.ExecStart
+    ((import (nixpkgs + "/nixos/lib/eval-config.nix") {
+      inherit system;
+      modules = [
+        self.nixosModules.default
+        {
+          boot.loader.grub.enable = false;
+          fileSystems."/" = {
+            device = "/dev/sda1";
+            fsType = "ext4";
+          };
+          system.stateVersion = "24.11";
+          services.ts1p = cfg;
+        }
+      ];
+    }).config.systemd.services.ts1p.serviceConfig.ExecStart
     );
 
   prod = execStartFor {
