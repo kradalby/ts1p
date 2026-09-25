@@ -25,7 +25,7 @@
     in
     {
       overlays.default = _final: prev: {
-        ts1p = self.packages.${prev.system}.default;
+        ts1p = self.packages.${prev.stdenv.hostPlatform.system}.default;
       };
       nixosModules.default = import ./module.nix self;
     }
