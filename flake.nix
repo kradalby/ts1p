@@ -9,7 +9,7 @@
     flake-checks.inputs.flake-utils.follows = "flake-utils";
     # Latest stable release, deliberately not following our nixpkgs: headscale
     # builds against the toolchain its release pins.
-    headscale.url = "github:juanfont/headscale/v0.29.2";
+    headscale.url = "github:juanfont/headscale/v0.29.4";
   };
 
   outputs =
