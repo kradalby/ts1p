@@ -173,7 +173,11 @@ pkgs.testers.runNixOSTest {
   };
 
   testScript = ''
+    import datetime as dt
     import json
+
+    # How long a node gets to show up in headscale or reach ts1p over the tailnet.
+    settle = dt.timedelta(minutes=2)
 
     start_all()
     headscale.wait_for_unit("headscale")
@@ -212,7 +216,7 @@ pkgs.testers.runNixOSTest {
     headscale.wait_until_succeeds(
         "headscale nodes list -o json | "
         "jq -e 'map(.givenName // .given_name) | index(\"ts1p\")'",
-        timeout=120,
+        timeout=settle,
     )
     ts1p_ip = headscale.succeed(
         "headscale nodes list -o json | jq -r "
@@ -231,18 +235,18 @@ pkgs.testers.runNixOSTest {
         )
 
     # writer: write then read both succeed (retry until the tailnet path is up).
-    writer.wait_until_succeeds(code("/api/put", put) + " = 200", timeout=120)
+    writer.wait_until_succeeds(code("/api/put", put) + " = 200", timeout=settle)
     writer.succeed(code("/api/get", get) + " = 200")
     out = writer.succeed(f"curl -fsS {hdr} -X POST -d '{get}' http://{ts1p_ip}/api/get")
     assert '"Value":"aGVsbG8="' in out, f"unexpected get body: {out}"
     assert '"Version":1' in out, f"unexpected version: {out}"
 
     # reader: reads succeed, writes are denied.
-    reader.wait_until_succeeds(code("/api/get", get) + " = 200", timeout=120)
+    reader.wait_until_succeeds(code("/api/get", get) + " = 200", timeout=settle)
     reader.succeed(code("/api/put", '{"Name":"x","Value":"eQ=="}') + " = 403")
 
     # denied: reachable, but every call is access-denied.
-    denied.wait_until_succeeds(code("/api/get", get) + " = 403", timeout=120)
+    denied.wait_until_succeeds(code("/api/get", get) + " = 403", timeout=settle)
     denied.succeed(code("/api/put", put) + " = 403")
 
     # The browser-blocking header is mandatory: omitting it is rejected even for
