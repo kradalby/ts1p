@@ -1,5 +1,4 @@
-# Full-stack NixOS VM integration test. A headscale control server (latest
-# stable, patched to allowlist the secrets capability), a
+# Full-stack NixOS VM integration test. A headscale control server, a
 # ts1p node brought up via this repo's NixOS module (in --dev mode), and three
 # Tailscale clients with different ACL-capability grants:
 #
@@ -17,13 +16,7 @@
   system,
 }:
 let
-  # Latest stable headscale, plus the (already-merged) upstream commit that
-  # allowlists tailscale.com/cap/secrets in grants — policy set rejects the
-  # capability without it. Drop the patch once a release contains
-  # juanfont/headscale@66937040f.
-  headscalePkg = headscale.packages.${system}.default.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ./headscale-cap-secrets.patch ];
-  });
+  headscalePkg = headscale.packages.${system}.default;
 
   # Self-signed cert for the control server, trusted by every joining node.
   tls-cert = pkgs.runCommand "selfSignedCerts" { buildInputs = [ pkgs.openssl ]; } ''
