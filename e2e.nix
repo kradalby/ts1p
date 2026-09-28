@@ -81,7 +81,7 @@ pkgs.testers.runNixOSTest {
     headscale.imports = [ headscale.nixosModules.testkit ];
 
     ts1p =
-      { lib, nodes, ... }:
+      { lib, ... }:
       {
         imports = [ self.nixosModules.default ];
         services.ts1p = {
@@ -93,10 +93,6 @@ pkgs.testers.runNixOSTest {
         };
         # Start only after the test writes TS_AUTHKEY into the EnvironmentFile.
         systemd.services.ts1p.wantedBy = lib.mkForce [ ];
-        # tsnet's control dialer resolves "headscale" via /etc/hosts and dials
-        # the v6 address without falling back to v4; the test VLAN's v6 routing
-        # is broken, so pin the control hostname to headscale's v4 VLAN IP.
-        networking.extraHosts = lib.mkForce "${nodes.headscale.networking.primaryIPAddress} headscale";
       };
 
     writer = { ... }: tailscaleClient;
