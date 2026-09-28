@@ -146,7 +146,6 @@
               pkgs
               self
               headscale
-              system
               ;
           };
         };
