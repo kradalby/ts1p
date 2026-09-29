@@ -7,10 +7,9 @@
     flake-checks.url = "github:kradalby/flake-checks";
     flake-checks.inputs.nixpkgs.follows = "nixpkgs";
     flake-checks.inputs.flake-utils.follows = "flake-utils";
-    # The e2e's test kit lives on this branch until a headscale release ships it
-    # (juanfont/headscale#3507). Deliberately not following our nixpkgs:
-    # headscale builds against the toolchain its own lock pins.
-    headscale.url = "github:kradalby/headscale/kradalby/hs-flake-test-kit";
+    # Deliberately not following our nixpkgs: headscale builds against the
+    # toolchain its own lock pins.
+    headscale.url = "github:juanfont/headscale";
   };
 
   outputs =
