@@ -108,16 +108,15 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1790602627,
+        "lastModified": 1790624539,
         "narHash": "sha256-cmrpyEoN5BdEvaScAiVua+XbhAhGecUPoxNpRYaV1DU=",
-        "owner": "kradalby",
+        "owner": "juanfont",
         "repo": "headscale",
-        "rev": "3616e47935b1f240a0b9bc3bd12fb2b870221bbf",
+        "rev": "00663fbbfe12997b0bcff2c658db75f45b096b0c",
         "type": "github"
       },
       "original": {
-        "owner": "kradalby",
-        "ref": "kradalby/hs-flake-test-kit",
+        "owner": "juanfont",
         "repo": "headscale",
         "type": "github"
       }
