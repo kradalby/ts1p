@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,8 @@ import (
 )
 
 // ctrlBackend is a controllable backend for cache internal tests: it counts
-// Loads, can be made to fail, and can gate Loads to force concurrent overlap.
+// Loads, can be made to fail, and can gate Loads and Lists to force concurrent
+// overlap.
 type ctrlBackend struct {
 	mem *mem.Backend
 
@@ -40,14 +42,7 @@ func (b *ctrlBackend) Load(ctx context.Context, name string) (*backend.Record, e
 	// this Load is parked does not change what this Load returns — that is what
 	// makes a returning fill "stale" and exercises the seq-guard.
 	r, err := b.mem.Load(ctx, name)
-	if b.gate != nil {
-		b.enteredOnce.Do(func() { close(b.entered) })
-		<-b.gate
-
-		if b.onGateRelease != nil {
-			b.onGateRelease(ctx)
-		}
-	}
+	b.park(ctx)
 
 	b.mu.Lock()
 	fe := b.failErr
@@ -65,6 +60,9 @@ func (b *ctrlBackend) Save(ctx context.Context, name string, r *backend.Record) 
 }
 
 func (b *ctrlBackend) List(ctx context.Context) ([]string, error) {
+	names, err := b.mem.List(ctx) // snapshot before gating, as Load does
+	b.park(ctx)
+
 	b.mu.Lock()
 	fe := b.failErr
 	b.mu.Unlock()
@@ -73,7 +71,21 @@ func (b *ctrlBackend) List(ctx context.Context) ([]string, error) {
 		return nil, fe
 	}
 
-	return b.mem.List(ctx)
+	return names, err
+}
+
+// park blocks a gated call until the gate opens.
+func (b *ctrlBackend) park(ctx context.Context) {
+	if b.gate == nil {
+		return
+	}
+
+	b.enteredOnce.Do(func() { close(b.entered) })
+	<-b.gate
+
+	if b.onGateRelease != nil {
+		b.onGateRelease(ctx)
+	}
 }
 
 func (b *ctrlBackend) Delete(ctx context.Context, name string) error {
@@ -225,6 +237,101 @@ func TestSeqGuardWriteDuringFill(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), got.Versions[1], "write during fill must win")
 	require.Equal(t, loadsBefore, b.loads.Load(), "post-write read should be a cache hit")
+}
+
+// readPastParkedFetch parks fetch inside the inner backend holding pre-write
+// state, applies write through the cache, then runs read while fetch is still
+// parked: read can only come back stale by joining fetch's flight.
+func readPastParkedFetch(b *ctrlBackend, fetch, write, read func()) {
+	b.gate = make(chan struct{})
+	b.entered = make(chan struct{})
+
+	go fetch()
+
+	<-b.entered
+
+	write()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		read()
+	}()
+
+	synctest.Wait() // read has joined fetch's flight or parked in its own
+	close(b.gate)
+	<-done
+}
+
+// TestReadAfterWriteSkipsStaleFlight: a read that starts after a write returned
+// must observe it, even while a fetch begun before the write is in flight. The
+// store's forced read-modify-write relies on this; served the pre-write record,
+// it would reuse a version number or resurrect a deleted secret.
+func TestReadAfterWriteSkipsStaleFlight(t *testing.T) {
+	force := backend.WithForceRefresh(context.Background())
+
+	t.Run("save", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			b := newCtrl()
+			require.NoError(t, b.mem.Save(force, "a", recOf("a", "1")))
+
+			c := New(b, 0, time.Hour)
+
+			var (
+				got *backend.Record
+				err error
+			)
+
+			readPastParkedFetch(b,
+				func() { _, _ = c.Load(force, "a") },
+				func() { require.NoError(t, c.Save(force, "a", recOf("a", "2"))) },
+				func() { got, err = c.Load(force, "a") },
+			)
+			require.NoError(t, err)
+			require.Equal(t, []byte("2"), got.Versions[1])
+		})
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			b := newCtrl()
+			require.NoError(t, b.mem.Save(force, "a", recOf("a", "1")))
+
+			c := New(b, 0, time.Hour)
+
+			var err error
+
+			readPastParkedFetch(b,
+				func() { _, _ = c.Load(force, "a") },
+				func() { require.NoError(t, c.Delete(force, "a")) },
+				func() { _, err = c.Load(force, "a") },
+			)
+			require.ErrorIs(t, err, backend.ErrNotFound)
+		})
+	})
+
+	t.Run("list", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			b := newCtrl()
+			require.NoError(t, b.mem.Save(force, "a", recOf("a", "1")))
+
+			c := New(b, 0, time.Hour)
+
+			var (
+				got []string
+				err error
+			)
+
+			readPastParkedFetch(b,
+				func() { _, _ = c.List(force) },
+				func() { require.NoError(t, c.Save(force, "b", recOf("b", "1"))) },
+				func() { got, err = c.List(force) },
+			)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"a", "b"}, got)
+		})
+	})
 }
 
 // TestForceRefreshFreshOrFail: a forced read must not be satisfied by the

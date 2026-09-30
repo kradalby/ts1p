@@ -22,7 +22,8 @@
 // consistent: a write invalidates the name list, and List is authoritative for
 // membership while per-record reads may briefly disagree (store.List tolerates a
 // per-name miss). A monotonic sequence guards against a slow read-fill clobbering
-// a newer write.
+// a newer write, and scopes each coalesced fetch so a read that starts after a
+// write can never join a fetch that started before it.
 package cache
 
 import (
@@ -30,6 +31,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,10 +50,6 @@ const jitterFrac = 5 // 1/5 = 20%
 // absorb a crash-looping consumer, short enough that an out-of-band create
 // appears promptly even before the warmer's next relist.
 const negTTLCap = 30 * time.Second
-
-// listKey is the fixed singleflight key for the List path (record fetches are
-// keyed by "rec:"+name, which cannot collide with it).
-const listKey = "list"
 
 // cacheStaleServed counts reads served from a resident-but-expired entry because
 // the inner backend was unavailable (stale-while-revalidate).
@@ -132,6 +130,10 @@ func (c *Cache) live(expires time.Time) bool {
 
 // snapshot returns the current mutation sequence, used by a read-fill to detect
 // a write that intervened while it was fetching.
+//
+// Callers take it before joining a flight and key the flight by it: a fetch
+// begun before a write may return pre-write state, and a caller that started
+// after the write (the store's forced read-modify-write) must not be handed it.
 func (c *Cache) snapshot() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -186,8 +188,9 @@ func (c *Cache) Load(ctx context.Context, name string) (*backend.Record, error) 
 		}
 	}
 
-	v, err, _ := c.sf.Do("rec:"+name, func() (any, error) {
-		seq := c.snapshot()
+	seq := c.snapshot()
+
+	v, err, _ := c.sf.Do("rec:"+strconv.FormatUint(seq, 10)+":"+name, func() (any, error) {
 		// Detach the fetch from the caller that won the flight: its disconnect
 		// must not fail the shared result for coalesced waiters or discard a
 		// fetch that succeeded. WithoutCancel keeps the ForceRefresh value, and
@@ -259,8 +262,9 @@ func (c *Cache) List(ctx context.Context) ([]string, error) {
 		c.mu.Unlock()
 	}
 
-	v, err, _ := c.sf.Do(listKey, func() (any, error) {
-		seq := c.snapshot()
+	seq := c.snapshot()
+
+	v, err, _ := c.sf.Do("list:"+strconv.FormatUint(seq, 10), func() (any, error) {
 		// Detached from the winning caller for the same reason as Load.
 		names, err := c.inner.List(context.WithoutCancel(ctx))
 		if err != nil {
